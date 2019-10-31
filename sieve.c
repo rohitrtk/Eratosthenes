@@ -11,6 +11,8 @@
 
 #define STAGE_ERROR -1
 
+#define RTK_DEBUG 1
+
 /*
  * Reads an integer from r and writes it to w if
  * it is not a multiple of m. Returns 1 on error.
@@ -36,30 +38,46 @@ int filter(int m, int r, int w)
 }
 
 /*
- * 
- * 
- * 
- * 
  */
 pid_t makeStage(int m, int r, int** fds)
 {
-    int fd[2];
-    if(pipe(fd) == -1)
-    {
-        perror("Stage Pipe");
-        return STAGE_ERROR;
-    }
+    pid_t f = fork();
 
+    if (f < 0)
+    {
+        perror("Make Stage Fork");
+        exit(255);
+    }
+    else if(f == 0)
+    {
+        return 0;
+    }
+    else
+    {
+        return waitpid(f, NULL, 0);
+    }
 }
 
+/*
+ * ==================== MAIN ====================
+ */
 int main(int argc, char** argv)
 {
+    // Determines if program arguments are valid
     if(argc != 2 || strtol(argv[1], NULL, 10) < 0)
     {
         fprintf(stderr, "Program takes in 1 positive integer as parameter!");
         exit(EXIT_FAILURE);
     }
 
+    // Turns of sigpipe
+    if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+    {
+        perror("Signal");
+        exit(EXIT_FAILURE);
+    }
+
+    // Pipe setup
     int fd[2];
     if(pipe(fd) == -1)
     {
@@ -83,16 +101,34 @@ int main(int argc, char** argv)
 
         p = fd[PIPE_READ];
 
-        int* dataPipe = malloc(sizeof(int*) * 2);
+        int* dataPipe = malloc(2 * sizeof(int));
         if(pipe(dataPipe) == -1)
         {
             perror("Data Pipe");
             exit(EXIT_FAILURE);
         }
 
+        // Filter will always be the first number in the pipe
         int filter;
         read(p, &filter, sizeof(int));
-        makeStage(filter, p, &dataPipe);
+        
+        int ms = makeStage(filter, p, &dataPipe);
+
+        // Handle child return of makeStage
+        if(ms == 0)
+        {
+            #if RTK_DEBUG == 1
+                printf("Return of makeStage() child: %d\n", ms);
+            #endif
+        }
+        // Handle parent return of makeStage
+        else
+        {
+            #if RTK_DEBUG == 1
+                printf("Return of makeStage() parent: %d\n", ms);
+            #endif
+        }
+        
 
         free(dataPipe);
 
@@ -137,15 +173,24 @@ int main(int argc, char** argv)
         close(fd[PIPE_WRITE]);
 
         int status;
-        waitpid(f, &status, WNOHANG);
+        f = waitpid(f, &status, 0);
 
-        if(WIFEXITED(status) && WIFEXITED(status) == 255)
+        free(numbers);
+
+        if(WIFEXITED(status))
         {
-            free(numbers);
-            exit(255);
+            int exitStatus = WIFEXITED(status);
+
+            #if RTK_DEBUG == 1
+                printf("Exit status of main parent %d: %d\n", f, exitStatus);
+            #endif
+            
+            if(exitStatus == 255)
+            {
+                exit(255);
+            }
         }
     }
     
-
     return EXIT_SUCCESS;
 }
