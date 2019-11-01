@@ -20,20 +20,21 @@
 int filter(int m, int r, int w)
 {
     int buffer;
-    if(read(r, &buffer, sizeof(int)) == -1)
+    while(read(r, &buffer, sizeof(int)) > 0)
     {
-        perror("Filter");
-        return EXIT_FAILURE;    
-    }
-
-    if(buffer % m != 0)
-    {
-        if(write(w, &buffer, sizeof(int)) == -1)
+        printf("Filtering %d\n", buffer);
+    
+        if(buffer % m != 0)
         {
-            return EXIT_FAILURE;
+            if(write(w, &buffer, sizeof(int)) == -1)
+            {
+                return EXIT_FAILURE;
+            }
+            
+            printf("Filtered %d\n", buffer);
         }
     }
-
+    
     return EXIT_SUCCESS;
 }
 
@@ -41,8 +42,9 @@ int filter(int m, int r, int w)
  */
 pid_t makeStage(int m, int r, int** fds)
 {
-    pid_t f = fork();
+    printf("Make Stage\n");
 
+    pid_t f = fork();
     if (f < 0)
     {
         perror("Make Stage Fork");
@@ -50,10 +52,18 @@ pid_t makeStage(int m, int r, int** fds)
     }
     else if(f == 0)
     {
+        close(*fds[PIPE_READ]);
+
+        filter(m, r, *fds[PIPE_WRITE]);
+
+        close(*fds[PIPE_READ]);
+
         return 0;
     }
     else
     {
+        close(*fds[PIPE_READ]);
+        close(*fds[PIPE_WRITE]);
         return waitpid(f, NULL, 0);
     }
 }
@@ -107,11 +117,14 @@ int main(int argc, char** argv)
             perror("Data Pipe");
             exit(EXIT_FAILURE);
         }
+        
+        dup2(p, dataPipe[PIPE_READ]);
 
         // Filter will always be the first number in the pipe
         int filter;
         read(p, &filter, sizeof(int));
-        
+        printf("Filter: %d\n", filter);
+
         int ms = makeStage(filter, p, &dataPipe);
 
         // Handle child return of makeStage
@@ -124,18 +137,18 @@ int main(int argc, char** argv)
         // Handle parent return of makeStage
         else
         {
+            waitpid(ms, NULL, 0);
             #if RTK_DEBUG == 1
                 printf("Return of makeStage() parent: %d\n", ms);
             #endif
         }
         
+        close(dataPipe[PIPE_WRITE]);
 
-        free(dataPipe);
-
-        /*
+/*
         int buffer;
         int bytesRead;
-        while((bytesRead = read(p, &buffer, sizeof(int))) > 0)
+        while((bytesRead = read(dataPipe[PIPE_READ], &buffer, sizeof(int))) > 0)
         {
             int length = snprintf(NULL, 0, "%d", buffer);
             char* str = malloc(length + 1);
@@ -147,7 +160,8 @@ int main(int argc, char** argv)
 
             free(str);
         }
-        */
+*/        
+        free(dataPipe);
 
         close(fd[PIPE_READ]);
 
@@ -168,6 +182,7 @@ int main(int argc, char** argv)
         {
             numbers[i - 2] = i;
             write(p, &numbers[i - 2], sizeof(int));
+            printf("Wrote %d to pipe\n", numbers[i - 2]);
         }
 
         close(fd[PIPE_WRITE]);
