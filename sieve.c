@@ -11,7 +11,7 @@
 
 #define STAGE_ERROR -1
 
-#define RTK_DEBUG 1
+#define MAKE_PIPE(fd) if (pipe(fd) == -1) { perror("Pipe"); exit(EXIT_FAILURE); }
 
 /*
  * Reads an integer from r and writes it to w if
@@ -31,7 +31,7 @@ int filter(int m, int r, int w)
                 return EXIT_FAILURE;
             }
             
-            printf("Filtered %d\n", buffer);
+            printf("Filtered %d\n", buffer); 
         }
     }
     
@@ -42,7 +42,7 @@ int filter(int m, int r, int w)
  */
 pid_t makeStage(int m, int r, int** fds)
 {
-    printf("Make Stage\n");
+    printf("Making stage for filter %d\n", m);
 
     pid_t f = fork();
     if (f < 0)
@@ -54,16 +54,19 @@ pid_t makeStage(int m, int r, int** fds)
     {
         close(*fds[PIPE_READ]);
 
-        filter(m, r, *fds[PIPE_WRITE]);
+        if(filter(m, r, *fds[PIPE_WRITE]) == EXIT_FAILURE)
+        {
+            printf("Filter exited w/ a problem\n");
+        }
 
-        close(*fds[PIPE_READ]);
+        close(*fds[PIPE_WRITE]);
 
         return 0;
     }
     else
     {
-        close(*fds[PIPE_READ]);
-        close(*fds[PIPE_WRITE]);
+        //close(*fds[PIPE_READ]);
+        //close(*fds[PIPE_WRITE]);
         return waitpid(f, NULL, 0);
     }
 }
@@ -89,11 +92,7 @@ int main(int argc, char** argv)
 
     // Pipe setup
     int fd[2];
-    if(pipe(fd) == -1)
-    {
-        perror("Pipe");
-        exit(EXIT_FAILURE);
-    }
+    MAKE_PIPE(fd);
 
     int p;
 
@@ -104,80 +103,55 @@ int main(int argc, char** argv)
         perror("Fork");
         exit(EXIT_FAILURE);
     }
-    else if(f == 0) // Child
+    else if(f == 0) // Child - Will read data from pipe and create stages based on data
     {
-        // Reads data from pipe
+        // Closing write end of pipe
         close(fd[PIPE_WRITE]);
 
         p = fd[PIPE_READ];
-
-        int* dataPipe = malloc(2 * sizeof(int));
-        if(pipe(dataPipe) == -1)
-        {
-            perror("Data Pipe");
-            exit(EXIT_FAILURE);
-        }
-        
-        dup2(p, dataPipe[PIPE_READ]);
 
         // Filter will always be the first number in the pipe
         int filter;
         read(p, &filter, sizeof(int));
         printf("Filter: %d\n", filter);
 
+        int* dataPipe = malloc(2 * sizeof(int));
+        MAKE_PIPE(dataPipe);
+
         int ms = makeStage(filter, p, &dataPipe);
 
         // Handle child return of makeStage
         if(ms == 0)
         {
-            #if RTK_DEBUG == 1
-                printf("Return of makeStage() child: %d\n", ms);
-            #endif
+            printf("Return of makeStage() child: %d\n", ms);
         }
         // Handle parent return of makeStage
         else
         {
             waitpid(ms, NULL, 0);
-            #if RTK_DEBUG == 1
-                printf("Return of makeStage() parent: %d\n", ms);
-            #endif
-        }
-        
-        close(dataPipe[PIPE_WRITE]);
-
-/*
-        int buffer;
-        int bytesRead;
-        while((bytesRead = read(dataPipe[PIPE_READ], &buffer, sizeof(int))) > 0)
-        {
-            int length = snprintf(NULL, 0, "%d", buffer);
-            char* str = malloc(length + 1);
-
-            snprintf(str, length + 1, "%d", buffer);
             
-            write(STDOUT_FILENO, str, sizeof(str));
-            write(STDOUT_FILENO, "\n", 1);
-
-            free(str);
+            printf("Return of makeStage() parent: %d\n", ms);
         }
-*/        
-        free(dataPipe);
 
         close(fd[PIPE_READ]);
+
+        free(dataPipe);
 
         exit(EXIT_SUCCESS);
     }
-    else            // Parent
+    else // Parent - Will write data to pipe
     {
-        // Writes data to pipe
+        // Closing read end of pipe
         close(fd[PIPE_READ]);
 
-        p = fd[1];
+        p = fd[PIPE_WRITE];
 
+        // Get maximum number to be in pipes
         int  n          = strtol(argv[1], NULL, 10);
         int  rn         = (int)sqrt(n);
         int* numbers    = malloc((n - 1)* sizeof(int)); // Array of numbers from 2 to n
         
+        // Write number to pipe
         for(int i = 2; i < rn + 1; ++i)
         {
             numbers[i - 2] = i;
@@ -196,9 +170,7 @@ int main(int argc, char** argv)
         {
             int exitStatus = WIFEXITED(status);
 
-            #if RTK_DEBUG == 1
-                printf("Exit status of main parent %d: %d\n", f, exitStatus);
-            #endif
+            printf("Exit status of main parent %d: %d\n", f, exitStatus);
             
             if(exitStatus == 255)
             {
@@ -209,3 +181,21 @@ int main(int argc, char** argv)
     
     return EXIT_SUCCESS;
 }
+
+// Test code for printing stuff in pipe
+/*
+        int buffer;
+        int bytesRead;
+        while((bytesRead = read(dataPipe[PIPE_READ], &buffer, sizeof(int))) > 0)
+        {
+            int length = snprintf(NULL, 0, "%d", buffer);
+            char* str = malloc(length + 1);
+
+            snprintf(str, length + 1, "%d", buffer);
+            
+            write(STDOUT_FILENO, str, sizeof(str));
+            write(STDOUT_FILENO, "\n", 1);
+
+            free(str);
+        }
+*/   
