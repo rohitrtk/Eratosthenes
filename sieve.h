@@ -1,14 +1,7 @@
 #ifndef SIEVE_H_
 #define SIEVE_H_
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-#include <signal.h>
-#include <sys/wait.h>
-#include <math.h>
-#include <errno.h>
 
 #define PIPE_READ  0
 #define PIPE_WRITE 1

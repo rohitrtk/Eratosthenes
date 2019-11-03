@@ -1,5 +1,13 @@
 #include "sieve.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <math.h>
+#include <errno.h>
+
 int filter(int m, int r, int w)
 {
     int buffer;
@@ -23,9 +31,6 @@ int filter(int m, int r, int w)
 
 pid_t makeStage(int m, int r, int** fds)
 {
-    int fd[2];
-    pipe(fd);
-
     int f = fork();
 
     if(f < 0)
@@ -35,19 +40,23 @@ pid_t makeStage(int m, int r, int** fds)
     }
     else if(f == 0)
     {
-        if(filter(m, r, fd[PIPE_WRITE]) == EXIT_FAILURE)
+        if(filter(m, r, (*fds)[PIPE_WRITE]) == EXIT_FAILURE)
         {
             printf("%s\n", strerror(errno));
 
             exit(ERROR_PROG_FAILURE);
         }
 
+        close((*fds)[PIPE_WRITE]);
+        printFromPipe((*fds)[PIPE_READ]);
+        close((*fds)[PIPE_READ]);
+
         return 0;
     }
     else
     {
-        close(fd[PIPE_READ]);
-        close(fd[PIPE_WRITE]);
+        close((*fds)[PIPE_READ]);
+        close((*fds)[PIPE_WRITE]);
 
         return waitpid(f, NULL, 0);
     }
@@ -55,6 +64,8 @@ pid_t makeStage(int m, int r, int** fds)
 
 void printFromPipe(int r)
 {
+    printf("Printing from pipe!\n");
+
     int buffer;
     int bytesRead;
     while((bytesRead = read(r, &buffer, sizeof(int))) > 0)
@@ -123,11 +134,14 @@ int main(int argc, char** argv)
         {
             printf("Return of makeStage() child: %d\n", ms);
 
-            exit(115);
+            exit(115); // Test exit code
         }
         // Handle parent return of makeStage
         else
         {
+            close(dataPipe[PIPE_WRITE]);
+            close(dataPipe[PIPE_READ]);
+
             int status;
             waitpid(ms, &status, 0);
 
@@ -182,4 +196,3 @@ int main(int argc, char** argv)
     
     return EXIT_SUCCESS;
 }
- 
