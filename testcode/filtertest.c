@@ -50,12 +50,6 @@ void printFromPipe(int r)
 
 int main(int argc, char** argv)
 {
-    if(argc != 2 || strtol(argv[1], NULL, 10) < 0)
-    {
-        fprintf(stderr, "Program takes in 1 positive integer as parameter!");
-        exit(1);
-    }
-
     if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
     {
         perror("Signal");
@@ -63,7 +57,6 @@ int main(int argc, char** argv)
     }
 
     int fd[2];
-
     pipe(fd);
     
     int f = fork();
@@ -79,7 +72,9 @@ int main(int argc, char** argv)
         int fd2[2];
         pipe(fd2);
 
-        if(filter(2, fd[0], fd2[1]) == 1)
+        int filterValue = strtol(argv[2], NULL, 10);
+
+        if(filter(filterValue, fd[0], fd2[1]) == 1)
         {
             printf("%s\n", strerror(errno));
         }
