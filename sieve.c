@@ -6,12 +6,14 @@
 #include <sys/wait.h>
 #include <math.h>
 
-#define PIPE_READ 0
+#define PIPE_READ  0
 #define PIPE_WRITE 1
 
-#define STAGE_ERROR -1
+#define ERROR_STAGING     -1
+#define ERROR_INVALID_ARGS 1
+#define ERROR_PROG_FAILURE 2
 
-#define MAKE_PIPE(fd) if (pipe(fd) == -1) { perror("Pipe"); exit(EXIT_FAILURE); }
+#define MAKE_PIPE(fd) if (pipe(fd) == -1) { perror("Pipe"); exit(ERROR_PROG_FAILURE); }
 
 /*
  * Reads an integer from r and writes it to w if
@@ -80,45 +82,41 @@ int main(int argc, char** argv)
     if(argc != 2 || strtol(argv[1], NULL, 10) < 0)
     {
         fprintf(stderr, "Program takes in 1 positive integer as parameter!");
-        exit(EXIT_FAILURE);
+        exit(ERROR_INVALID_ARGS);
     }
 
     // Turns of sigpipe
     if(signal(SIGPIPE, SIG_IGN) == SIG_ERR)
     {
         perror("Signal");
-        exit(EXIT_FAILURE);
+        exit(ERROR_PROG_FAILURE);
     }
 
     // Pipe setup
     int fd[2];
     MAKE_PIPE(fd);
 
-    int p;
+    int f = fork();
 
-    pid_t f = fork();
-
-    if(f < 0)       // Error
+    if(f < 0)
     {
         perror("Fork");
-        exit(EXIT_FAILURE);
+        exit(ERROR_PROG_FAILURE);
     }
     else if(f == 0) // Child - Will read data from pipe and create stages based on data
     {
         // Closing write end of pipe
         close(fd[PIPE_WRITE]);
 
-        p = fd[PIPE_READ];
-
         // Filter will always be the first number in the pipe
         int filter;
-        read(p, &filter, sizeof(int));
+        read(fd[PIPE_READ], &filter, sizeof(int));
         printf("Filter: %d\n", filter);
 
         int* dataPipe = malloc(2 * sizeof(int));
         MAKE_PIPE(dataPipe);
 
-        int ms = makeStage(filter, p, &dataPipe);
+        int ms = makeStage(filter, fd[PIPE_READ], &dataPipe);
 
         // Handle child return of makeStage
         if(ms == 0)
@@ -144,8 +142,6 @@ int main(int argc, char** argv)
         // Closing read end of pipe
         close(fd[PIPE_READ]);
 
-        p = fd[PIPE_WRITE];
-
         // Get maximum number to be in pipes
         int  n          = strtol(argv[1], NULL, 10);
         int  rn         = (int)sqrt(n);
@@ -155,7 +151,8 @@ int main(int argc, char** argv)
         for(int i = 2; i < rn + 1; ++i)
         {
             numbers[i - 2] = i;
-            write(p, &numbers[i - 2], sizeof(int));
+            write(fd[PIPE_WRITE], &numbers[i - 2], sizeof(int));
+
             printf("Wrote %d to pipe\n", numbers[i - 2]);
         }
 
@@ -168,13 +165,14 @@ int main(int argc, char** argv)
 
         if(WIFEXITED(status))
         {
-            int exitStatus = WIFEXITED(status);
+            int exitStatus = WEXITSTATUS(status);
 
-            printf("Exit status of main parent %d: %d\n", f, exitStatus);
+            printf("First child pid: %d\n", f);
+            printf("Exit status of parent: %d\n", exitStatus);
             
-            if(exitStatus == 255)
+            if(exitStatus == ERROR_STAGING)
             {
-                exit(255);
+                exit(ERROR_PROG_FAILURE);
             }
         }
     }
