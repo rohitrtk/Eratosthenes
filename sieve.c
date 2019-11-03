@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <math.h>
+#include <errno.h>
 
 #define PIPE_READ  0
 #define PIPE_WRITE 1
@@ -14,6 +15,10 @@
 #define ERROR_PROG_FAILURE 2
 
 #define MAKE_PIPE(fd) if (pipe(fd) == -1) { perror("Pipe"); exit(ERROR_PROG_FAILURE); }
+
+int     filter(int m, int r, int w);
+pid_t   makeStage(int m, int r, int** fds);
+void    printFromPipe(int r);
 
 /*
  * Reads an integer from r and writes it to w if
@@ -41,40 +46,82 @@ int filter(int m, int r, int w)
 }
 
 /*
+ * Arguments: m is the filter value, r is a file descriptors from which the
+ * integers to be filtered are recieved from, and fds is a pointer to an array
+ * of file descriptors to be used by a pipe.
+ *
+ * The purpose of this function is to: Create a pipe between the current
+ * stage in the data pipeline and the next stage, create a fork to set up
+ * the next stage or to print the final result, filter the data recieved 
+ * for the current stage, and close any file descriptors that are no longer
+ * needed.
+ * 
+ * Returns twice; The child process will return 0, signalling to handle the
+ * next stage in the data pipeline or to print. The parent process will return
+ * the childs PID, signalling to wait to recieve number of known filters. Function
+ * will exit with -1 if there is an error.
  */
 pid_t makeStage(int m, int r, int** fds)
 {
-    printf("Making stage for filter %d\n", m);
+    int fd[2];
+    pipe(fd);
 
-    pid_t f = fork();
-    if (f < 0)
+    int f = fork();
+
+    if(f < 0)
     {
-        perror("Make Stage Fork");
-        exit(255);
+        perror("Fork - makeStage");
+        exit(ERROR_STAGING);
     }
     else if(f == 0)
     {
-        close(*fds[PIPE_READ]);
-
-        if(filter(m, r, *fds[PIPE_WRITE]) == EXIT_FAILURE)
+        close(fd[PIPE_READ]);
+        
+        if(filter(m, r, fd[PIPE_WRITE]) == EXIT_FAILURE)
         {
-            printf("Filter exited w/ a problem\n");
+            printf("%s\n", strerror(errno));
+
+            exit(ERROR_PROG_FAILURE);
         }
 
-        close(*fds[PIPE_WRITE]);
+        close(fd[PIPE_WRITE]);
 
         return 0;
     }
     else
     {
-        //close(*fds[PIPE_READ]);
-        //close(*fds[PIPE_WRITE]);
+        close(fd[PIPE_READ]);
+        close(fd[PIPE_WRITE]);
+
         return waitpid(f, NULL, 0);
     }
 }
 
 /*
- * ==================== MAIN ====================
+ * Prints integers from pipe r to stdout
+ */
+void printFromPipe(int r)
+{
+    int buffer;
+    int bytesRead;
+    while((bytesRead = read(r, &buffer, sizeof(int))) > 0)
+    {
+        int length = snprintf(NULL, 0, "%d", buffer);
+        int size = sizeof(char) * (length + 1);
+
+        char* str = malloc(size);
+
+        snprintf(str, size, "%d", buffer);
+                
+        write(STDOUT_FILENO, str, sizeof(str));
+        write(STDOUT_FILENO, "\n", 1);
+
+        free(str);
+    }
+}
+
+/*
+ * Main
  */
 int main(int argc, char** argv)
 {
@@ -122,12 +169,15 @@ int main(int argc, char** argv)
         if(ms == 0)
         {
             printf("Return of makeStage() child: %d\n", ms);
+
+            exit(115);
         }
         // Handle parent return of makeStage
         else
         {
-            waitpid(ms, NULL, 0);
-            
+            int status;
+            waitpid(ms, &status, 0);
+
             printf("Return of makeStage() parent: %d\n", ms);
         }
 
