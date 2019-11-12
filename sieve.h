@@ -10,7 +10,13 @@
 #define ERROR_INVALID_ARGS 1
 #define ERROR_PROG_FAILURE 2
 
-#define MAKE_PIPE(fd) if (pipe(fd) == -1) { perror("Pipe"); exit(ERROR_PROG_FAILURE); }
+#define MAKE_PIPE(fd)                   if (pipe(fd) == -1) { perror("Pipe"); exit(ERROR_PROG_FAILURE); }
+
+#define N_ISPRIME(n)                    printf("%d is prime\n", n)
+#define N_ISNPRODOF2PRIMES(n)           printf("%d is not the product of 2 primes\n")
+#define N_ISPRODOF2PRIMES(n, f1, f2)    printf("%d is the product of primes %d & %d\n", n, f1, f2)
+
+#define PRINT_NUM_FILTERS(filters)      printf("Number of filters: %d\n", filters)
 
 /*
  * Reads an integer from r and writes it to w if

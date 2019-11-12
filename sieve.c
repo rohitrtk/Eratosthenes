@@ -1,5 +1,3 @@
-#include "sieve.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,6 +5,8 @@
 #include <sys/wait.h>
 #include <math.h>
 #include <errno.h>
+
+#include "sieve.h"
 
 int filter(int m, int r, int w)
 {
@@ -92,7 +92,7 @@ int main(int argc, char** argv)
     // Determines if program arguments are valid
     if(argc != 2 || strtol(argv[1], NULL, 10) < 0)
     {
-        fprintf(stderr, "Program takes in 1 positive integer as parameter!");
+        fprintf(stderr, "Program takes in 1 positive integer as parameter!\n");
         exit(ERROR_INVALID_ARGS);
     }
 
@@ -103,12 +103,16 @@ int main(int argc, char** argv)
         exit(ERROR_PROG_FAILURE);
     }
 
+    // Square root of n will be maximum number in pipes
+    int  n  = strtol(argv[1], NULL, 10);
+    int  rn = (int)sqrt(n);
+
     // Pipe setup
     int fd[2];
     MAKE_PIPE(fd);
 
     int f = fork();
-
+    
     if(f < 0)
     {
         perror("Fork");
@@ -124,33 +128,37 @@ int main(int argc, char** argv)
         read(fd[PIPE_READ], &filter, sizeof(int));
         printf("Filter: %d\n", filter);
 
-        int* dataPipe = malloc(2 * sizeof(int));
-        MAKE_PIPE(dataPipe);
-
-        int ms = makeStage(filter, fd[PIPE_READ], &dataPipe);
-
-        // Handle child return of makeStage
-        if(ms == 0)
+        while(filter < rn)
         {
-            printf("Return of makeStage() child: %d\n", ms);
+            int* dataPipe = malloc(2 * sizeof(int));
+            MAKE_PIPE(dataPipe);
 
-            exit(115); // Test exit code
+            int ms = makeStage(filter, fd[PIPE_READ], &dataPipe);
+
+            // Handle child return of makeStage
+            if(ms == 0)
+            {
+                printf("Return of makeStage() child: %d\n", ms);
+
+                exit(115); // Test exit code
+            }
+            // Handle parent return of makeStage
+            else
+            {
+                close(dataPipe[PIPE_WRITE]);
+                dup2(fd[PIPE_READ], dataPipe[PIPE_READ]);
+
+                int status;
+                waitpid(ms, &status, 0);
+
+                close(dataPipe[PIPE_READ]);
+                printf("Return of makeStage() parent: %d\n", ms);
+            }
+
+            close(fd[PIPE_READ]);
+
+            free(dataPipe);
         }
-        // Handle parent return of makeStage
-        else
-        {
-            close(dataPipe[PIPE_WRITE]);
-            close(dataPipe[PIPE_READ]);
-
-            int status;
-            waitpid(ms, &status, 0);
-
-            printf("Return of makeStage() parent: %d\n", ms);
-        }
-
-        close(fd[PIPE_READ]);
-
-        free(dataPipe);
 
         exit(EXIT_SUCCESS);
     }
@@ -158,12 +166,10 @@ int main(int argc, char** argv)
     {
         // Closing read end of pipe
         close(fd[PIPE_READ]);
-
-        // Get maximum number to be in pipes
-        int  n          = strtol(argv[1], NULL, 10);
-        int  rn         = (int)sqrt(n);
-        int* numbers    = malloc((n - 1)* sizeof(int)); // Array of numbers from 2 to n
         
+        // Array of storing integers from 2 to n
+        int* numbers = malloc((n - 1) * sizeof(int));
+
         // Write number to pipe
         for(int i = 2; i < rn + 1; ++i)
         {
