@@ -128,37 +128,51 @@ int main(int argc, char** argv)
         read(fd[PIPE_READ], &filter, sizeof(int));
         printf("Filter: %d\n", filter);
 
-        while(filter < rn)
+
+        int  numKnownFilters = 0;
+        int* filters = malloc(sizeof(int) * 255); // Can hold up 255 values
+
+        if(n % filter == 0)
         {
-            int* dataPipe = malloc(2 * sizeof(int));
-            MAKE_PIPE(dataPipe);
-
-            int ms = makeStage(filter, fd[PIPE_READ], &dataPipe);
-
-            // Handle child return of makeStage
-            if(ms == 0)
-            {
-                printf("Return of makeStage() child: %d\n", ms);
-
-                exit(115); // Test exit code
-            }
-            // Handle parent return of makeStage
-            else
-            {
-                close(dataPipe[PIPE_WRITE]);
-                dup2(fd[PIPE_READ], dataPipe[PIPE_READ]);
-
-                int status;
-                waitpid(ms, &status, 0);
-
-                close(dataPipe[PIPE_READ]);
-                printf("Return of makeStage() parent: %d\n", ms);
-            }
-
-            close(fd[PIPE_READ]);
-
-            free(dataPipe);
+            filters[numKnownFilters] = filter;
+            ++numKnownFilters;
         }
+
+        int* dataPipe = malloc(2 * sizeof(int));
+        MAKE_PIPE(dataPipe);
+
+        int ms = makeStage(filter, fd[PIPE_READ], &dataPipe);
+
+        // Handle child return of makeStage
+        if(ms == 0)
+        {
+            printf("Return of makeStage() child: %d\n", ms);
+
+            exit(115); // Test exit code
+        }
+        // Handle parent return of makeStage
+        else
+        {
+            close(dataPipe[PIPE_WRITE]);
+            dup2(fd[PIPE_READ], dataPipe[PIPE_READ]);
+
+            int status;
+            waitpid(ms, &status, 0);
+
+            close(dataPipe[PIPE_READ]);
+            printf("Return of makeStage() parent: %d\n", ms);
+        }
+
+        close(fd[PIPE_READ]);
+
+        free(dataPipe);
+
+        if(numKnownFilters == 0)
+        {
+            N_ISPRIME(n);
+        }
+        
+        free(filters);
 
         exit(EXIT_SUCCESS);
     }
