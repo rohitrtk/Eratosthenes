@@ -130,7 +130,7 @@ int main(int argc, char** argv)
 
 
         int  numKnownFilters = 0;
-        int* filters = malloc(sizeof(int) * 255); // Can hold up 255 values
+        int* filters = malloc(sizeof(int) * (rn + 1)); // Can hold up to root n filters
 
         if(n % filter == 0)
         {
