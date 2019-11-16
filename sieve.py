@@ -61,31 +61,26 @@ if __name__ == '__main__':
     # For each value in values, if value is a factor add it to
     # the list of potential factors
     for val in values:
+        #print('Checking %d %% %d == 0' % (n, val))
         if n % val == 0:
             pot_factors.append(val)
-
-        # Exit loop once 2 factors are found
-        if len(pot_factors) >= 2:
-            break
+            #print('Apennd %d' % val)
 
     num_factors = len(pot_factors)
-    print('Potential factors %d' % num_factors)
+    #print('Potential factors: %d' % num_factors)
+    
     # If there are no prime factors, the number is prime
     if num_factors == 0:
         msg_n_is_prime(n)
     # If there is one prime factor...
     elif num_factors == 1:
-        # If the potential factor is a filter, it is not a prime
-        if pot_factors[0] in known_filters:
-            msg_n_is_not_prod_primes(n)
-        else:
-            # If the potential factor is the sqaure root of n,
-            # n is the sqaure of the potential factor 
-            if n % pot_factors[0] == 0:
+        # If the potential factor is the sqaure root of n,
+        # n is the product of 2 primes
+        if pot_factors[0] ** 2 == n:
                 msg_n_is_prod_primes(n, pot_factors[0], pot_factors[0])
-            else:
-                msg_n_is_prime(n)
-    # If there are 2 factors, then n is the product of the
+        else:
+            msg_n_is_not_prod_primes(n)
+    # If there are 2 factors, then n not is the product of the
     # potential primes
     else:
-        msg_n_is_prod_primes(n, pot_factors[0], pot_factors[1])
+        msg_n_is_not_prod_primes(n)
