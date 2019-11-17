@@ -64,10 +64,8 @@ if __name__ == '__main__':
         #print('Checking %d %% %d == 0' % (n, val))
         if n % val == 0:
             pot_factors.append(val)
-            #print('Apennd %d' % val)
 
     num_factors = len(pot_factors)
-    #print('Potential factors: %d' % num_factors)
     
     # If there are no prime factors, the number is prime
     if num_factors == 0:

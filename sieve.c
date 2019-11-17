@@ -47,18 +47,19 @@ pid_t makeStage(int m, int r, int** fds)
             exit(ERROR_PROG_FAILURE);
         }
 
-        close((*fds)[PIPE_WRITE]);
-        printFromPipe((*fds)[PIPE_READ]);
-        close((*fds)[PIPE_READ]);
+        //close((*fds)[PIPE_WRITE]);
+        //printFromPipe((*fds)[PIPE_READ]);
+        //close((*fds)[PIPE_READ]);
 
         return 0;
     }
     else
     {
-        close((*fds)[PIPE_READ]);
-        close((*fds)[PIPE_WRITE]);
 
-        return waitpid(f, NULL, 0);
+        //close((*fds)[PIPE_READ]);
+        //close((*fds)[PIPE_WRITE]);
+
+        return f;
     }
 }
 
@@ -104,8 +105,8 @@ int main(int argc, char** argv)
     }
 
     // Square root of n will be maximum number in pipes
-    int  n  = strtol(argv[1], NULL, 10);
-    int  rn = (int)sqrt(n);
+    int n       = strtol(argv[1], NULL, 10);
+    double sqrn = sqrt(n);
 
     // Pipe setup
     int fd[2];
@@ -121,58 +122,62 @@ int main(int argc, char** argv)
     else if(f == 0) // Child - Will read data from pipe and create stages based on data
     {
         // Closing write end of pipe
-        close(fd[PIPE_WRITE]);
+        //close(fd[PIPE_WRITE]);
 
-        // Filter will always be the first number in the pipe
-        int filter;
-        read(fd[PIPE_READ], &filter, sizeof(int));
-        printf("Filter: %d\n", filter);
+        // Filter will always be the first value in the pipe
+        int currentFilter;
+        read(fd[PIPE_READ], &currentFilter, sizeof(int));
 
-
-        int  numKnownFilters = 0;
-        int* filters = malloc(sizeof(int) * (rn + 1)); // Can hold up to root n filters
-
-        if(n % filter == 0)
+        //int numKnownFilters = 0;
+        
+        while(currentFilter < sqrn)
         {
-            filters[numKnownFilters] = filter;
-            ++numKnownFilters;
-        }
+            int* dataPipe = malloc(2 * sizeof(int));
+            MAKE_PIPE(dataPipe);
 
-        int* dataPipe = malloc(2 * sizeof(int));
-        MAKE_PIPE(dataPipe);
+            dup2(fd[PIPE_WRITE], dataPipe[PIPE_WRITE]);
 
-        int ms = makeStage(filter, fd[PIPE_READ], &dataPipe);
+            int ms = makeStage(currentFilter, fd[PIPE_READ], &dataPipe);
 
-        // Handle child return of makeStage
-        if(ms == 0)
-        {
-            printf("Return of makeStage() child: %d\n", ms);
+            // Handle child return of makeStage
+            if(ms == 0)
+            {
+                // Add 1 to numKnownFilters since the child of makeStage ran
+                // which means that we filtered some value
+                
+                printf("Return of makeStage() child: %d\n", ms);
 
-            exit(115); // Test exit code
-        }
-        // Handle parent return of makeStage
-        else
-        {
-            close(dataPipe[PIPE_WRITE]);
-            dup2(fd[PIPE_READ], dataPipe[PIPE_READ]);
+                free(dataPipe);
 
-            int status;
-            waitpid(ms, &status, 0);
+                exit(1); // Test exit code
+            }1
+            // Handle parent return of makeStage
+            else
+            {
+                close(dataPipe[PIPE_WRITE]);
 
-            close(dataPipe[PIPE_READ]);
-            printf("Return of makeStage() parent: %d\n", ms);
+                int status;
+                waitpid(ms, &status, 0);
+
+                if(WIFEXITED(status))
+                {
+                    //printf("Prog exit status %d\n", WEXITSTATUS(status));
+                    //numKnownFilters += WEXITSTATUS(status);
+                }
+
+                read(dataPipe[PIPE_READ], &currentFilter, sizeof(int));
+                printf("Next filter: %d\n", currentFilter);
+
+                close(dataPipe[PIPE_READ]);
+                printf("Return of makeStage() parent: %d\n", ms);
+            }
+
+            free(dataPipe);
         }
 
         close(fd[PIPE_READ]);
-
-        free(dataPipe);
-
-        if(numKnownFilters == 0)
-        {
-            N_ISPRIME(n);
-        }
         
-        free(filters);
+        //printf("Number of filters: %d\n", numKnownFilters);
 
         exit(EXIT_SUCCESS);
     }
@@ -184,8 +189,8 @@ int main(int argc, char** argv)
         // Array of storing integers from 2 to n
         int* numbers = malloc((n - 1) * sizeof(int));
 
-        // Write number to pipe
-        for(int i = 2; i < rn + 1; ++i)
+        // Write numbers 2...n to pipe
+        for(int i = 2; i < n + 1; ++i)
         {
             numbers[i - 2] = i;
             write(fd[PIPE_WRITE], &numbers[i - 2], sizeof(int));

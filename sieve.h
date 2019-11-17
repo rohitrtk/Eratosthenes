@@ -10,6 +10,8 @@
 #define ERROR_INVALID_ARGS 1
 #define ERROR_PROG_FAILURE 2
 
+#define INITIAL_FILTER 2
+
 #define MAKE_PIPE(fd)                   if (pipe(fd) == -1) { perror("Pipe"); exit(ERROR_PROG_FAILURE); }
 
 #define N_ISPRIME(n)                    printf("%d is prime\n", n)
