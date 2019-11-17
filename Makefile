@@ -1,5 +1,5 @@
 FLAGS = -g
-DEPS = sieve.h
+DEPS = sieve.h sievedebug.h
 LIBS = -lm
 
 all: sieve

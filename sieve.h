@@ -3,6 +3,10 @@
 
 #include <unistd.h>
 
+/*
+ * Contains function & macro definitions for use by sieve.c.
+ */
+
 #define PIPE_READ  0
 #define PIPE_WRITE 1
 

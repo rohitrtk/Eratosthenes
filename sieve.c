@@ -8,6 +8,10 @@
 
 #include "sieve.h"
 
+#define SIEVEDEBUG
+
+#include "sievedebug.h"
+
 int filter(int m, int r, int w)
 {
     int buffer;
@@ -22,9 +26,11 @@ int filter(int m, int r, int w)
                 return EXIT_FAILURE;
             }
             
-            printf("Filtered %d\n", buffer); 
+            LOG("Filtered %d\n", buffer);
         }
     }
+
+    LOG("Finished filtering\n");
     
     return EXIT_SUCCESS;
 }
@@ -40,25 +46,21 @@ pid_t makeStage(int m, int r, int** fds)
     }
     else if(f == 0)
     {
+        close((*fds)[PIPE_READ]);
+
         if(filter(m, r, (*fds)[PIPE_WRITE]) == EXIT_FAILURE)
         {
-            printf("%s\n", strerror(errno));
+            LOG("%s\n", strerror(errno));
 
             exit(ERROR_PROG_FAILURE);
         }
 
-        //close((*fds)[PIPE_WRITE]);
-        //printFromPipe((*fds)[PIPE_READ]);
-        //close((*fds)[PIPE_READ]);
+        close((*fds)[PIPE_WRITE]);
 
         return 0;
     }
     else
     {
-
-        //close((*fds)[PIPE_READ]);
-        //close((*fds)[PIPE_WRITE]);
-
         return f;
     }
 }
@@ -122,62 +124,43 @@ int main(int argc, char** argv)
     else if(f == 0) // Child - Will read data from pipe and create stages based on data
     {
         // Closing write end of pipe
-        //close(fd[PIPE_WRITE]);
+        close(fd[PIPE_WRITE]);
 
         // Filter will always be the first value in the pipe
         int currentFilter;
         read(fd[PIPE_READ], &currentFilter, sizeof(int));
-
-        //int numKnownFilters = 0;
         
+        int** dataPipes = malloc(sizeof(int*) * (int)(sqrn - 1));
+        dataPipes[0] = malloc(sizeof(int) * 2);
+        MAKE_PIPE(dataPipes[0]);
+
+        dup2(fd[PIPE_READ], dataPipes[0][PIPE_READ]);
+
+        int numKnownFilters = 1;
+
         while(currentFilter < sqrn)
         {
-            int* dataPipe = malloc(2 * sizeof(int));
-            MAKE_PIPE(dataPipe);
+            dataPipes[numKnownFilters] = malloc(sizeof(int) * 2);
+            MAKE_PIPE(dataPipes[numKnownFilters]);
 
-            dup2(fd[PIPE_WRITE], dataPipe[PIPE_WRITE]);
-
-            int ms = makeStage(currentFilter, fd[PIPE_READ], &dataPipe);
-
-            // Handle child return of makeStage
-            if(ms == 0)
+            int stage = makeStage(currentFilter, dataPipes[numKnownFilters--][PIPE_READ], &dataPipes[numKnownFilters]);
+        
+            // Child return of makeStage()
+            if(stage == 0)
             {
-                // Add 1 to numKnownFilters since the child of makeStage ran
-                // which means that we filtered some value
-                
-                printf("Return of makeStage() child: %d\n", ms);
-
-                free(dataPipe);
-
-                exit(1); // Test exit code
-            }1
-            // Handle parent return of makeStage
-            else
-            {
-                close(dataPipe[PIPE_WRITE]);
-
-                int status;
-                waitpid(ms, &status, 0);
-
-                if(WIFEXITED(status))
-                {
-                    //printf("Prog exit status %d\n", WEXITSTATUS(status));
-                    //numKnownFilters += WEXITSTATUS(status);
-                }
-
-                read(dataPipe[PIPE_READ], &currentFilter, sizeof(int));
-                printf("Next filter: %d\n", currentFilter);
-
-                close(dataPipe[PIPE_READ]);
-                printf("Return of makeStage() parent: %d\n", ms);
+                printf("Exiting from makeStage() - CHILD\n");
+                exit(1);
             }
+            
+            int status;
+            waitpid(f, &status, 0);
 
-            free(dataPipe);
+            break;
         }
 
         close(fd[PIPE_READ]);
+
         
-        //printf("Number of filters: %d\n", numKnownFilters);
 
         exit(EXIT_SUCCESS);
     }
@@ -195,7 +178,7 @@ int main(int argc, char** argv)
             numbers[i - 2] = i;
             write(fd[PIPE_WRITE], &numbers[i - 2], sizeof(int));
 
-            printf("Wrote %d to pipe\n", numbers[i - 2]);
+            LOG("Wrote %d to pipe\n", numbers[i - 2]);
         }
 
         close(fd[PIPE_WRITE]);
@@ -209,8 +192,8 @@ int main(int argc, char** argv)
         {
             int exitStatus = WEXITSTATUS(status);
 
-            printf("First child pid: %d\n", f);
-            printf("Exit status of parent: %d\n", exitStatus);
+            LOG("First child pid: %d\n", f);
+            LOG("Exit status of parent: %d\n", exitStatus);
             
             if(exitStatus == ERROR_STAGING)
             {
