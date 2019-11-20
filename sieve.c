@@ -17,7 +17,7 @@ int filter(int m, int r, int w)
     int buffer;
     while(read(r, &buffer, sizeof(int)) > 0)
     {
-        printf("Filtering %d\n", buffer);
+        LOG("Filtering %d given filter %d\n", buffer, m);
     
         if(buffer % m != 0)
         {
@@ -54,7 +54,7 @@ pid_t makeStage(int m, int r, int** fds)
 
             exit(ERROR_PROG_FAILURE);
         }
-
+        
         close((*fds)[PIPE_WRITE]);
 
         return 0;
@@ -137,30 +137,42 @@ int main(int argc, char** argv)
         dup2(fd[PIPE_READ], dataPipes[0][PIPE_READ]);
 
         int numKnownFilters = 1;
-
+        int i = 0;
         while(currentFilter < sqrn)
         {
+            LOG("CURRENT FILTER: %d\n", currentFilter);
+
             dataPipes[numKnownFilters] = malloc(sizeof(int) * 2);
             MAKE_PIPE(dataPipes[numKnownFilters]);
 
-            int stage = makeStage(currentFilter, dataPipes[numKnownFilters--][PIPE_READ], &dataPipes[numKnownFilters]);
+            int stage = makeStage(currentFilter, dataPipes[numKnownFilters - 1][PIPE_READ], &dataPipes[numKnownFilters]);
         
             // Child return of makeStage()
             if(stage == 0)
-            {
-                printf("Exiting from makeStage() - CHILD\n");
+            {    
+                LOG("Exiting from makeStage() - CHILD\n");
                 exit(1);
             }
             
-            int status;
-            waitpid(f, &status, 0);
+            close(dataPipes[numKnownFilters][PIPE_WRITE]);
 
-            break;
+            read(dataPipes[numKnownFilters][PIPE_READ], &currentFilter, sizeof(int));
+            numKnownFilters++;
+
+            //int status;
+            //waitpid(f, &status, 0);
+            
+            if(i > 3) 
+            {
+                //printFromPipe(dataPipes[numKnownFilters - 1][PIPE_READ]);
+                break;
+            }
+            i++;
         }
-
+        
         close(fd[PIPE_READ]);
 
-        
+        LOG("Exiting from makeStage() - PARENT\n");
 
         exit(EXIT_SUCCESS);
     }
