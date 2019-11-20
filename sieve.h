@@ -19,7 +19,7 @@
 #define MAKE_PIPE(fd)                   if (pipe(fd) == -1) { perror("Pipe"); exit(ERROR_PROG_FAILURE); }
 
 #define N_ISPRIME(n)                    printf("%d is prime\n", n)
-#define N_ISNPRODOF2PRIMES(n)           printf("%d is not the product of 2 primes\n")
+#define N_ISNPRODOF2PRIMES(n)           printf("%d is not the product of 2 primes\n", n)
 #define N_ISPRODOF2PRIMES(n, f1, f2)    printf("%d is the product of primes %d & %d\n", n, f1, f2)
 
 #define PRINT_NUM_FILTERS(filters)      printf("Number of filters: %d\n", filters)

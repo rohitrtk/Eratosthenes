@@ -81,4 +81,12 @@ if __name__ == '__main__':
     # If there are 2 factors, then n not is the product of the
     # potential primes
     else:
-        msg_n_is_not_prod_primes(n)
+        no_factors = True
+        for val in pot_factors:
+            if n // val in pot_factors:
+                msg_n_is_prod_primes(n, val, n // val)
+                no_factors = False
+                break
+
+        if no_factors:
+            msg_n_is_not_prod_primes(n)

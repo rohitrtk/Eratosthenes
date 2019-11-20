@@ -8,7 +8,7 @@
 
 #include "sieve.h"
 
-#define SIEVEDEBUG
+//#define SIEVEDEBUG
 
 #include "sievedebug.h"
 
@@ -136,8 +136,12 @@ int main(int argc, char** argv)
 
         dup2(fd[PIPE_READ], dataPipes[0][PIPE_READ]);
 
+        // TEMPORARY ARRAY SIZE
+        int* filters = malloc(sizeof(int) * 1000);
+        filters[0] = currentFilter;
+
         int numKnownFilters = 1;
-        int i = 0;
+        
         while(currentFilter < sqrn)
         {
             LOG("CURRENT FILTER: %d\n", currentFilter);
@@ -156,20 +160,72 @@ int main(int argc, char** argv)
             
             close(dataPipes[numKnownFilters][PIPE_WRITE]);
 
+            // Update current filter value
             read(dataPipes[numKnownFilters][PIPE_READ], &currentFilter, sizeof(int));
+
+            // Add current filter to array of filters
+            filters[numKnownFilters] = currentFilter;
+
             numKnownFilters++;
 
-            //int status;
-            //waitpid(f, &status, 0);
-            
-            if(i > 3) 
+            int status;
+            waitpid(stage, &status, 0);
+        }
+
+        // Adding remaining numbers in pipe to an array
+        int i = numKnownFilters;
+        int buffer;
+        while(read(dataPipes[numKnownFilters - 1][PIPE_READ], &buffer, sizeof(int)))
+        {
+            filters[i] = buffer;
+            ++i;
+        }
+
+        // Determine if there exists any factors in the array
+        int numFactors = 0;
+        int factors[2];
+        for(int j = 0; j < 1000; ++j)
+        {
+            if(filters[j] == 0)
             {
-                //printFromPipe(dataPipes[numKnownFilters - 1][PIPE_READ]);
                 break;
             }
-            i++;
+            else if(n % filters[j] == 0 && n != filters[j])
+            {
+                factors[numFactors] = filters[j];
+                numFactors++;
+            }
         }
         
+        if(numFactors == 0)
+        {
+            N_ISPRIME(n);
+        }
+        else if(numFactors == 1)
+        {
+            if(factors[0] * factors[0] == n)
+            {
+                N_ISPRODOF2PRIMES(n, factors[0], factors[0]);
+            }
+            else
+            {
+                N_ISNPRODOF2PRIMES(n);
+            }
+        }
+        else
+        {
+            if (factors[0] * factors[1] == n)
+            {
+                N_ISPRODOF2PRIMES(n, factors[0], factors[1]);
+            }
+            else
+            {
+                N_ISNPRODOF2PRIMES(n);
+            }
+            
+        }
+        
+
         close(fd[PIPE_READ]);
 
         LOG("Exiting from makeStage() - PARENT\n");
