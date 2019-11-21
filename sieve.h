@@ -49,6 +49,18 @@ int     filter(int m, int r, int w);
 pid_t   makeStage(int m, int r, int** fds);
 
 /*
+ * Returns the numner of factors of n found from array of filters. Function
+ * also outputs the factors, if any, to the array factors.
+ */
+int    findFactors(int n, int* filters, int filtersSize, int* factors);
+
+/*
+ * Prints to stdout if the number n is prime, a product of 2 primes or 
+ * not a product of 2 primes.
+ */
+void    printPrimeFactor(int n, int numFactors, int* factors, int factorsSize);
+
+/*
  * Prints integers from pipe r to stdout
  */
 void    printFromPipe(int r);

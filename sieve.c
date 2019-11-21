@@ -87,6 +87,52 @@ void printFromPipe(int r)
     }
 }
 
+int findFactors(int n, int* filters, int filtersSize, int* factors)
+{
+    int numFactors = 0;
+
+    for(int j = 0; j < filtersSize; ++j)
+    {
+        if(n % filters[j] == 0 && n != filters[j])
+        {
+            factors[numFactors] = filters[j];
+            numFactors++;
+        }
+    }
+
+    return numFactors;
+}
+
+void printPrimeFactor(int n, int numFactors, int* factors, int factorsSize)
+{
+    if(numFactors == 0)
+    {
+        N_ISPRIME(n);
+    }
+    else if(numFactors == 1)
+    {
+        if(factors[0] * factors[0] == n)
+        {
+            N_ISPRODOF2PRIMES(n, factors[0], factors[0]);
+        }
+        else
+        {
+            N_ISNPRODOF2PRIMES(n);
+        }
+    }
+    else
+    {
+        if (factors[0] * factors[1] == n)
+        {
+            N_ISPRODOF2PRIMES(n, factors[0], factors[1]);
+        }
+        else
+        {
+            N_ISNPRODOF2PRIMES(n);
+        }
+    }
+}
+
 /*
  * Main
  */
@@ -107,8 +153,8 @@ int main(int argc, char** argv)
     }
 
     // Square root of n will be maximum number in pipes
-    int n       = strtol(argv[1], NULL, 10);
-    double sqrn = sqrt(n);
+    int n    = strtol(argv[1], NULL, 10);
+    int sqrn = (int)(sqrt(n));
 
     // Pipe setup
     int fd[2];
@@ -130,14 +176,19 @@ int main(int argc, char** argv)
         int currentFilter;
         read(fd[PIPE_READ], &currentFilter, sizeof(int));
         
-        int** dataPipes = malloc(sizeof(int*) * (int)(sqrn - 1));
-        dataPipes[0] = malloc(sizeof(int) * 2);
+        int** dataPipes = malloc(sizeof(int*) * sqrn);
+
+        for(int i = 0; i < sqrn; ++i)
+        {
+            dataPipes[i] = malloc(sizeof(int) * 2);
+        }
+
         MAKE_PIPE(dataPipes[0]);
 
+        // Duplicate fd read pipe to first data read pipe
         dup2(fd[PIPE_READ], dataPipes[0][PIPE_READ]);
 
-        // TEMPORARY ARRAY SIZE
-        int* filters = malloc(sizeof(int) * 1000);
+        int* filters = malloc(sizeof(int) * sqrn);
         filters[0] = currentFilter;
 
         int numKnownFilters = 1;
@@ -146,18 +197,20 @@ int main(int argc, char** argv)
         {
             LOG("CURRENT FILTER: %d\n", currentFilter);
 
-            dataPipes[numKnownFilters] = malloc(sizeof(int) * 2);
             MAKE_PIPE(dataPipes[numKnownFilters]);
 
             int stage = makeStage(currentFilter, dataPipes[numKnownFilters - 1][PIPE_READ], &dataPipes[numKnownFilters]);
-        
+
             // Child return of makeStage()
             if(stage == 0)
             {    
+                close(dataPipes[numKnownFilters - 1][PIPE_READ]);
+
                 LOG("Exiting from makeStage() - CHILD\n");
-                exit(1);
+                
+                exit(numKnownFilters);
             }
-            
+
             close(dataPipes[numKnownFilters][PIPE_WRITE]);
 
             // Update current filter value
@@ -170,6 +223,12 @@ int main(int argc, char** argv)
 
             int status;
             waitpid(stage, &status, 0);
+
+            //if(WIFEXITED(status))
+           // {
+            //    numKnownFilters += WEXITSTATUS(status);
+            //    LOG("Num known filters: %d\n", numKnownFilters);
+            //}
         }
 
         // Adding remaining numbers in pipe to an array
@@ -181,52 +240,25 @@ int main(int argc, char** argv)
             ++i;
         }
 
-        // Determine if there exists any factors in the array
-        int numFactors = 0;
-        int factors[2];
-        for(int j = 0; j < 1000; ++j)
-        {
-            if(filters[j] == 0)
-            {
-                break;
-            }
-            else if(n % filters[j] == 0 && n != filters[j])
-            {
-                factors[numFactors] = filters[j];
-                numFactors++;
-            }
-        }
-        
-        if(numFactors == 0)
-        {
-            N_ISPRIME(n);
-        }
-        else if(numFactors == 1)
-        {
-            if(factors[0] * factors[0] == n)
-            {
-                N_ISPRODOF2PRIMES(n, factors[0], factors[0]);
-            }
-            else
-            {
-                N_ISNPRODOF2PRIMES(n);
-            }
-        }
-        else
-        {
-            if (factors[0] * factors[1] == n)
-            {
-                N_ISPRODOF2PRIMES(n, factors[0], factors[1]);
-            }
-            else
-            {
-                N_ISNPRODOF2PRIMES(n);
-            }
-            
-        }
-        
+        close(dataPipes[numKnownFilters - 1][PIPE_READ]);
 
+        // Determine if there exists any factors in the array
+        int factors[2];
+        int numFactors = findFactors(n, filters, sqrn, factors);
+        
+        printPrimeFactor(n, numFactors, factors, 2);
+
+        // Closing read end of fd pipe
         close(fd[PIPE_READ]);
+
+        free(filters);
+
+        for(int i = 0; i < sqrn; ++i)
+        {
+            //free(dataPipes[i]);
+        }
+
+        free(dataPipes);
 
         LOG("Exiting from makeStage() - PARENT\n");
 
@@ -234,7 +266,7 @@ int main(int argc, char** argv)
     }
     else // Parent - Will write data to pipe
     {
-        // Closing read end of pipe
+        // Closing read end of fd pipe
         close(fd[PIPE_READ]);
         
         // Array of storing integers from 2 to n
@@ -249,6 +281,7 @@ int main(int argc, char** argv)
             LOG("Wrote %d to pipe\n", numbers[i - 2]);
         }
 
+        // Closing write end of fd pipe
         close(fd[PIPE_WRITE]);
 
         int status;
