@@ -95,6 +95,8 @@ int findFactors(int n, int* filters, int filtersSize, int* factors)
     {
         if(n % filters[j] == 0 && n != filters[j])
         {
+            LOG("Found factor %d\n", filters[j]);
+            
             factors[numFactors] = filters[j];
             numFactors++;
         }
@@ -114,6 +116,10 @@ void printPrimeFactor(int n, int numFactors, int* factors, int factorsSize)
         if(factors[0] * factors[0] == n)
         {
             N_ISPRODOF2PRIMES(n, factors[0], factors[0]);
+        }
+        else if(n % (n / factors[0]) == 0)
+        {
+            N_ISPRODOF2PRIMES(n, factors[0], n / factors[0]);
         }
         else
         {
@@ -217,7 +223,7 @@ int main(int argc, char** argv)
 
             // Child return of makeStage()
             if(stage == 0)
-            {    
+            {
                 close(dataPipes[numKnownFilters - 1][PIPE_READ]);
 
                 LOG("Exiting from makeStage() - CHILD\n");
@@ -260,7 +266,7 @@ int main(int argc, char** argv)
         // Determine if there exists any factors in the array
         int factors[2];
         int numFactors = findFactors(n, filters, sqrn, factors);
-        printf("numFactors: %d\n", numFactors);
+        
         printPrimeFactor(n, numFactors, factors, 2);
 
         // Closing read end of fd pipe

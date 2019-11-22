@@ -9,7 +9,7 @@
 #ifdef SIEVEDEBUG
     #define LOG(...) printf(__VA_ARGS__)
 #else
-    #define LOG(...)
+    #define LOG(...) ((void)0)
 #endif // SIEVEDEBUG
 
 #endif // SIEVEDEBUG_H_
