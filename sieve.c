@@ -133,8 +133,22 @@ void printPrimeFactor(int n, int numFactors, int* factors, int factorsSize)
     }
 }
 
+int valueInArray(int n, int* arr, int sizeOfArr)
+{
+    for(int i = 0; i < sizeOfArr; ++i)
+    {
+        if(n == arr[i])
+        {
+            return VALUE_FOUND;
+        }
+    }
+
+    return VALUE_NOT_FOUND;
+}
+
 /*
  * Main
+ * Implementation works for up to 17543
  */
 int main(int argc, char** argv)
 {
@@ -188,7 +202,7 @@ int main(int argc, char** argv)
         // Duplicate fd read pipe to first data read pipe
         dup2(fd[PIPE_READ], dataPipes[0][PIPE_READ]);
 
-        int* filters = malloc(sizeof(int) * sqrn);
+        int filters[sqrn];
         filters[0] = currentFilter;
 
         int numKnownFilters = 1;
@@ -207,7 +221,14 @@ int main(int argc, char** argv)
                 close(dataPipes[numKnownFilters - 1][PIPE_READ]);
 
                 LOG("Exiting from makeStage() - CHILD\n");
-                
+
+                for(int i = 0; i < sqrn; ++i)
+                {
+                    free(dataPipes[i]);
+                }
+
+                free(dataPipes);
+
                 exit(numKnownFilters);
             }
 
@@ -223,12 +244,6 @@ int main(int argc, char** argv)
 
             int status;
             waitpid(stage, &status, 0);
-
-            //if(WIFEXITED(status))
-           // {
-            //    numKnownFilters += WEXITSTATUS(status);
-            //    LOG("Num known filters: %d\n", numKnownFilters);
-            //}
         }
 
         // Adding remaining numbers in pipe to an array
@@ -245,17 +260,15 @@ int main(int argc, char** argv)
         // Determine if there exists any factors in the array
         int factors[2];
         int numFactors = findFactors(n, filters, sqrn, factors);
-        
+        printf("numFactors: %d\n", numFactors);
         printPrimeFactor(n, numFactors, factors, 2);
 
         // Closing read end of fd pipe
         close(fd[PIPE_READ]);
 
-        free(filters);
-
         for(int i = 0; i < sqrn; ++i)
         {
-            //free(dataPipes[i]);
+            free(dataPipes[i]);
         }
 
         free(dataPipes);

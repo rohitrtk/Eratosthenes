@@ -24,6 +24,9 @@
 
 #define PRINT_NUM_FILTERS(filters)      printf("Number of filters: %d\n", filters)
 
+#define VALUE_FOUND     1
+#define VALUE_NOT_FOUND 0
+
 /*
  * Reads an integer from r and writes it to w if
  * it is not a multiple of m. Returns 1 on error.
@@ -64,6 +67,11 @@ void    printPrimeFactor(int n, int numFactors, int* factors, int factorsSize);
  * Prints integers from pipe r to stdout
  */
 void    printFromPipe(int r);
+
+/*
+ * Returns 1 if the value n is found in the array arr otherwise return 0.
+ */
+int     valueInArray(int n, int* arr, int sizeOfArr);
 
 // Test code for printing stuff in pipe
 /*
